@@ -1,0 +1,78 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+  <title>Grid Trainer · Aim Trainer</title>
+  <meta name="description" content="A 3D grid aim trainer built with Rive." />
+  <style>
+    html, body { margin: 0; height: 100%; background: #090b12; overflow: hidden; }
+    #stage { position: fixed; inset: 0; }
+    canvas { display: block; width: 100%; height: 100%; outline: none; touch-action: none; }
+    /* The game writes cursor = "hidden" into its view model while a round is
+       live; everywhere else (menu, settings, result) the arrow shows. */
+    canvas.hide-cursor { cursor: none; }
+    #status {
+      position: fixed; inset: 0; display: grid; place-items: center;
+      color: #6c7a92; font: 700 15px/1.4 system-ui, sans-serif; letter-spacing: .08em;
+    }
+  </style>
+</head>
+<body>
+  <div id="stage"><canvas id="game" tabindex="-1"></canvas></div>
+  <div id="status">LOADING…</div>
+
+  <!-- Same runtime the Rive-hosted page plays this file with. -->
+  <script src="https://cdn.jsdelivr.net/npm/@rive-app/webgl2@2.50.0/rive.js"></script>
+  <script>
+    (function () {
+      var canvas = document.getElementById('game');
+      var status = document.getElementById('status');
+
+      function fail(err) {
+        status.textContent = 'THE GAME COULD NOT BE LOADED';
+        if (err) console.error(err);
+      }
+      if (typeof rive === 'undefined') { fail(); return; }
+
+      // Hide the OS cursor whenever the game asks for it.
+      function bindCursor(instance) {
+        var vm = instance.viewModelInstance;
+        var cursor = vm && vm.string('cursor');
+        if (!cursor) return;
+        var apply = function () {
+          canvas.classList.toggle('hide-cursor', cursor.value === 'hidden');
+        };
+        cursor.on(apply);
+        apply();
+      }
+
+      // The 3D arena is drawn by a script on a GPU canvas: the file has to be
+      // loaded with enableGPUCanvas, or it plays in immediate mode and the 3D
+      // draws nothing.
+      var file = new rive.RiveFile({ src: 'aim-trainer.riv', enableGPUCanvas: true });
+      file.init().then(function () {
+        var game = new rive.Rive({
+          riveFile: file,
+          canvas: canvas,
+          autoplay: true,
+          autoBind: true,
+          enableGPUCanvas: true,
+          stateMachine: 'Game Flow',
+          layout: new rive.Layout({ fit: rive.Fit.Layout }),
+          focusOptions: { allowFocusInterrupt: true },
+          onLoad: function () {
+            status.remove();
+            game.resizeDrawingSurfaceToCanvas();
+            canvas.focus({ preventScroll: true }); // so P / Esc reach the game
+            bindCursor(game);
+          },
+          onLoadError: fail
+        });
+        window.addEventListener('resize', function () { game.resizeDrawingSurfaceToCanvas(); });
+        canvas.addEventListener('pointerdown', function () { canvas.focus({ preventScroll: true }); });
+      }).catch(fail);
+    })();
+  </script>
+</body>
+</html>
